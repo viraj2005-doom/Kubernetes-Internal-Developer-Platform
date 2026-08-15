@@ -1,0 +1,98 @@
+services:
+
+  postgres:
+    image: postgres:18.4
+    container_name: idp2-postgres
+
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: idp2db
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d idp2db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    networks:
+      - idp2net
+
+
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+
+    container_name: idp2-backend
+
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_NAME: idp2db
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: root
+
+    ports:
+      - "3000:3000"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    networks:
+      - idp2net
+
+
+  frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile
+
+    container_name: idp2-frontend
+
+    ports:
+      - "8080:80"
+
+    depends_on:
+      - backend
+
+    networks:
+      - idp2net
+
+
+  pgadmin:
+    image: dpage/pgadmin4
+
+    container_name: idp2-pgadmin
+
+    environment:
+      PGADMIN_DEFAULT_EMAIL: virajpsolanki33@gmail.com
+      PGADMIN_DEFAULT_PASSWORD: root
+
+    ports:
+      - "5050:80"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    networks:
+      - idp2net
+
+
+volumes:
+  postgres_data:
+
+
+networks:
+  idp2net:
+    driver: bridge
