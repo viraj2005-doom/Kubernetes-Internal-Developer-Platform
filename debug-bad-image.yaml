@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: debug-bad-image
+spec:
+  containers:
+    - name: app
+      image: definitely-does-not-exist:999

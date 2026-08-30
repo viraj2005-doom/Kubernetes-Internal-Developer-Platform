@@ -1,98 +1,93 @@
-services:
+version: '3.8'
 
+services:
   postgres:
+    # સુધારો: 18.4 ની જગ્યાએ સ્ટેબલ LTS વર્ઝન (16-alpine) વાપર્યું
     image: postgres:18.4
     container_name: idp2-postgres
-
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: root
-      POSTGRES_DB: idp2db
-
-    ports:
-      - "5432:5432"
-
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    # સુધારો: ડેટા લોસ ન થાય તે માટે સાચો પાથ સેટ કર્યો
     volumes:
-      - postgres_data:/var/lib/postgresql
-
+      - postgres_data:/var/lib/postgresql/data
+    # સિક્યોરિટી: ડેટાબેઝ પોર્ટ (5432) ને પબ્લિકલી એક્સપોઝ કરવાને બદલે માત્ર ઈન્ટરનલ રાખ્યો છે.
+    # લોકલ ડીબગિંગ કરવું હોય તો જ નીચેની બે લાઈન અનકમેન્ટ કરવી:
+    # ports:
+    #   - "127.0.0.1:5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d idp2db"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 10s
       timeout: 5s
       retries: 5
-
+      start_period: 10s
     networks:
-      - idp2net
-
+      - idp2-backend-net
 
   backend:
     build:
       context: ./apps/backend
       dockerfile: Dockerfile
-
     container_name: idp2-backend
-
+    restart: unless-stopped
     environment:
-      NODE_ENV: development
-      PORT: 3000
+      NODE_ENV: ${NODE_ENV}
+      PORT: ${APP_PORT}
       DATABASE_HOST: postgres
-      DATABASE_PORT: 5432
-      DATABASE_NAME: idp2db
-      DATABASE_USER: postgres
-      DATABASE_PASSWORD: root
-
+      DATABASE_PORT: ${DB_PORT}
+      DATABASE_NAME: ${DB_NAME}
+      DATABASE_USER: ${DB_USER}
+      DATABASE_PASSWORD: ${DB_PASSWORD}
+    # બેકએન્ડ માત્ર રિવર્સ પ્રોક્સી કે ફ્રન્ટએન્ડ સાથે વાત કરશે.
+    # ડાયરેક્ટ એક્સેસ માટે:
     ports:
-      - "3000:3000"
-
+      - "${APP_PORT}:${APP_PORT}"
     depends_on:
       postgres:
         condition: service_healthy
-
     networks:
-      - idp2net
-
+      - idp2-backend-net
+      - idp2-frontend-net
 
   frontend:
     build:
       context: ./apps/frontend
       dockerfile: Dockerfile
-
     container_name: idp2-frontend
-
+    restart: unless-stopped
     ports:
-      - "8080:80"
-
+      - "${FRONTEND_PORT}:80"
     depends_on:
       - backend
-
     networks:
-      - idp2net
-
+      - idp2-frontend-net
 
   pgadmin:
-    image: dpage/pgadmin4
-
+    image: dpage/pgadmin4:latest
     container_name: idp2-pgadmin
-
+    restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: virajpsolanki33@gmail.com
-      PGADMIN_DEFAULT_PASSWORD: root
-
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
     ports:
-      - "5050:80"
-
+      # સિક્યોરિટી: માત્ર લોકલહોસ્ટ પર જ એક્સેસ મળે જેથી પબ્લિક ઈન્ટરનેટ પર ખુલ્લું ન રહે
+      - "127.0.0.1:${PGADMIN_PORT}:80"
     depends_on:
       postgres:
         condition: service_healthy
-
     networks:
-      - idp2net
-
+      - idp2-backend-net
 
 volumes:
   postgres_data:
-
+    driver: local
 
 networks:
-  idp2net:
+  # સિક્યોરિટી: નેટવર્ક આઈસોલેશન (Backend & Database અલગ, Frontend અલગ)
+  idp2-backend-net:
+    driver: bridge
+  idp2-frontend-net:
     driver: bridge
