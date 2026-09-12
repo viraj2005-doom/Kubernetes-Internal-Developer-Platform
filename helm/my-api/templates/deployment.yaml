@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "my-api.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{ include "my-api.labels" . | nindent 4 }}
+  annotations:
+    deployment.kubernetes.io/revision: "1"
+
+spec:
+  replicas: {{ .Values.replicaCount }}
+
+  selector:
+    matchLabels:
+      {{ include "my-api.selectorLabels" . | nindent 6 }}
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+  template:
+    metadata:
+      labels:
+        {{ include "my-api.selectorLabels" . | nindent 8 }}
+
+    spec:
+      serviceAccountName: {{ include "my-api.serviceAccountName" . }}
+
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: my-api
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+          envFrom:
+            - configMapRef:
+                name: {{ include "my-api.fullname" . }}
+            - secretRef:
+                name: {{ include "my-api.fullname" . }}
+
+          resources:
+            {{ toYaml .Values.resources | nindent 12 }}
+
+          startupProbe:
+            {{ toYaml .Values.startupProbe | nindent 12 }}
+
+          livenessProbe:
+            {{ toYaml .Values.livenessProbe | nindent 12 }}
+
+          readinessProbe:
+            {{ toYaml .Values.readinessProbe | nindent 12 }}
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+
+    {{- if .Values.topologySpreadConstraints.enabled }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{ include "my-api.selectorLabels" . | nindent 14 }}
+    {{- end }}

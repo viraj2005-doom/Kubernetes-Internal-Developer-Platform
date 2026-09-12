@@ -1,0 +1,21 @@
+Thank you for installing {{ .Chart.Name }}.
+
+Release:
+  {{ .Release.Name }}
+
+Namespace:
+  {{ .Release.Namespace }}
+
+Application version:
+  {{ .Chart.AppVersion }}
+
+To check the deployment:
+
+  kubectl get deployment {{ include "my-api.fullname" . }} \
+    -n {{ .Release.Namespace }}
+
+To check the Pods:
+
+  kubectl get pods \
+    -n {{ .Release.Namespace }} \
+    -l app.kubernetes.io/name={{ include "my-api.name" . }}

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "my-api.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "my-api.labels" . | nindent 4 }}
+
+data:
+  {{- range $key, $value := .Values.env }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}

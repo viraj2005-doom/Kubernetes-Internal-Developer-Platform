@@ -1,0 +1,28 @@
+replicaCount: 1
+
+fullnameOverride: my-api-dev
+
+image:
+  repository: kubernetesidp2-backend
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    memory: "64Mi"
+    cpu: "50m"
+  limits:
+    memory: "128Mi"
+    cpu: "100m"
+
+autoscaling:
+  enabled: false
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: api.dev.localhost
+      paths:
+        - path: /
+          pathType: Prefix
