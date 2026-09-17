@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform-demo
+  namespace: argocd
+
+spec:
+  description: Platform demo project
+
+  sourceRepos:
+    - 'https://github.com/viraj2005-doom/Kubernetes-Internal-Development-Platform.git'
+
+  destinations:
+    - namespace: development
+      server: https://kubernetes.default.svc
+
+    - namespace: production
+      server: https://kubernetes.default.svc
+
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+
+  namespaceResourceBlacklist:
+    - group: ''
+      kind: ResourceQuota
