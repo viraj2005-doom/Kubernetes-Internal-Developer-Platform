@@ -1,0 +1,34 @@
+replicaCount: 2
+
+image:
+  repository: kubernetesidp2-frontend
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+fullnameOverride: frontend-prod
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  host: app.example.com
+  path: /
+  pathType: Prefix
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+autoscaling:
+  enabled: false
+
+networkPolicy:
+  enabled: false

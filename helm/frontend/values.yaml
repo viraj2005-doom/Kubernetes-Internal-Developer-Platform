@@ -1,0 +1,44 @@
+replicaCount: 1
+
+image:
+  repository: kubernetesidp2-frontend
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+nameOverride: ""
+fullnameOverride: frontend-dev
+
+serviceAccount:
+  create: false
+  automount: false
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 80
+
+ingress:
+  enabled: true
+  className: nginx
+
+  host: app.dev.localhost
+  path: /
+  pathType: Prefix
+
+  tls:
+    enabled: true
+    secretName: frontend-dev-tls
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+autoscaling:
+  enabled: false
+
+networkPolicy:
+  enabled: false
