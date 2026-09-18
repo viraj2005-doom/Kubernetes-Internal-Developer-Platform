@@ -2,7 +2,7 @@ replicaCount: 2
 
 image:
   repository: yourdockerhub/my-api
-  tag: "local"
+  tag: "14751f3"
   pullPolicy: IfNotPresent
 
 nameOverride: ""
