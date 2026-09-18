@@ -1,0 +1,155 @@
+name: Backend CI Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'apps/backend/**'
+      - '.github/workflows/ci-backend.yaml'
+
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/backend/**'
+
+permissions:
+  contents: write
+
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: viraj3007/kubernetesidp2-backend
+  HELM_VALUES_PATH: helm/my-api/values.yaml
+
+jobs:
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18.4
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: testidpdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: apps/backend
+        run: npm ci
+
+      - name: Run linting
+        working-directory: apps/backend
+        run: npm run lint
+
+      - name: Run unit tests
+        working-directory: apps/backend
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testidpdb
+          NODE_ENV: test
+        run: npm test
+
+      - name: Run integration tests
+        working-directory: apps/backend
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testidpdb
+          NODE_ENV: test
+        run: npm run test:integration
+
+  build-and-push:
+    name: Build and Push Docker Image
+    needs: test
+    runs-on: ubuntu-latest
+
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    outputs:
+      image-tag: ${{ steps.image-tag.outputs.tag }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set image tag
+        id: image-tag
+        run: |
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          echo "tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "Image will be tagged: $SHORT_SHA"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: apps/backend
+          file: apps/backend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ steps.image-tag.outputs.tag }}
+            ${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  update-helm-values:
+    name: Update Helm Values with New Image Tag
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update image tag in Helm values
+        run: |
+          IMAGE_TAG=${{ needs.build-and-push.outputs.image-tag }}
+
+          echo "Updating image tag to: ${IMAGE_TAG}"
+
+          sed -i "s/tag: \".*\"/tag: \"${IMAGE_TAG}\"/" \
+            ${{ env.HELM_VALUES_PATH }}
+
+          grep "tag:" ${{ env.HELM_VALUES_PATH }}
+
+      - name: Commit and push updated values
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+
+          git add ${{ env.HELM_VALUES_PATH }}
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          git commit -m "ci: update my-api image to ${{ needs.build-and-push.outputs.image-tag }}"
+
+          git push
